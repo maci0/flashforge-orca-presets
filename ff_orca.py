@@ -32,6 +32,13 @@ UP_REPO = "https://github.com/SoftFever/OrcaSlicer"
 UP_PATHS = ("resources/profiles/Flashforge", "resources/profiles/OrcaFilamentLibrary")
 
 CATEGORIES = ("machine", "filament", "process")
+# valid OrcaSlicer preset `type`s per category (machine has the model umbrella +
+# the per-nozzle instances); a preset whose resolved type isn't here is mis-filed.
+EXPECTED_TYPES = {
+    "machine": {"machine", "machine_model"},
+    "filament": {"filament"},
+    "process": {"process"},
+}
 # resolution searches the FF vendor + the shared filament library
 VENDORS = ("Flashforge", "OrcaFilamentLibrary")
 # keys that differ for bookkeeping reasons, not slicing behaviour
@@ -130,11 +137,17 @@ def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
                 counts["bases"] = counts.get("bases", 0) + 1
                 continue
             name = raw.get("name") or _stem(fp)
+            flat = importable(resolve(name, resolve_tree, unresolved), name)
+            # Guard against presets mis-filed in the wrong category dir (FlashForge
+            # ships a couple of machine configs inside filament/). Ship only if the
+            # resolved `type` matches this category.
+            if flat.get("type") not in EXPECTED_TYPES[cat]:
+                counts["misfiled"] = counts.get("misfiled", 0) + 1
+                continue
             kind = classify(name, fs_tree, up_tree, unresolved)
             counts[kind] += 1
             if kind == "identical":
                 continue
-            flat = importable(resolve(name, resolve_tree, unresolved), name)
             if cat == "machine":
                 for key in ("bed_custom_texture", "bed_custom_model"):
                     v = flat.get(key)
@@ -147,9 +160,10 @@ def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
                   f"(keys absent): {', '.join(sorted(unresolved)[:5])}"
                   f"{' …' if len(unresolved) > 5 else ''}", file=sys.stderr)
         stats[cat] = counts
+        extra = f", {counts['misfiled']} mis-filed-skipped" if counts.get("misfiled") else ""
         print(f"    {cat}: {counts['missing'] + counts['newer']} shipped "
               f"({counts['missing']} missing + {counts['newer']} newer), "
-              f"{counts['identical']} identical-skipped")
+              f"{counts['identical']} identical-skipped{extra}")
     _copy_plates(fs_root, out_dir, plate_refs)
     _write_report(out_dir, stats, version)
     return stats

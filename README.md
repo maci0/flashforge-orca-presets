@@ -1,5 +1,7 @@
 # flashforge-orca-presets
 
+![ci](https://github.com/maci0/flashforge-orca-presets/actions/workflows/ci.yml/badge.svg)
+
 **FlashForge's current slicer presets — extracted from Flash Studio, flattened to
 import straight into stock [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer).**
 
@@ -20,9 +22,9 @@ Generated from **Flash Studio 1.7.8** vs upstream OrcaSlicer's `Flashforge` vend
 | category | shipped | missing upstream | newer than upstream | identical (skipped) |
 |---|---:|---:|---:|---:|
 | **machine** | **52** | 7 | 45 | 1 |
-| **filament** | **595** | 132 | 463 | 0 |
+| **filament** | **593** | 130 | 463 | 0 |
 | **process** | **121** | 20 | 101 | 0 |
-| **total** | **768** | 159 | 609 | 1 |
+| **total** | **766** | 157 | 609 | 1 |
 
 - The **52 machine presets** are printer×nozzle combinations (0.25 / 0.4 / 0.6 /
   0.8, plus HF) across **11 models**: Adventurer 5M, 5M Pro, A5, AD5X, 3 Series,
@@ -30,7 +32,7 @@ Generated from **Flash Studio 1.7.8** vs upstream OrcaSlicer's `Flashforge` vend
   *(Abstract `inheritance` bases like `fdm_machine_common` are **not** shipped —
   they aren't selectable printers; their values are already merged into each
   preset by flattening.)*
-- The **595 filaments** are FlashForge's catalogue (PLA Galaxy / Luminous /
+- The **593 filaments** are FlashForge's catalogue (PLA Galaxy / Luminous /
   Sparkle / Metal / Pro, PETG Pro/Transparent, the CF/GF line, …) plus FusRock
   and a few FF-tuned generics.
 - **Missing** = upstream doesn't have it at all (e.g. Adventurer A5, Creator 5).
@@ -99,7 +101,7 @@ python3 ff_orca.py build <flash-studio/resources/profiles> <orcaslicer/resources
 - [`test_ff_orca.py`](test_ff_orca.py) — unit + fuzz tests, no dependencies:
 
   ```sh
-  python3 test_ff_orca.py        # 7 unit tests + 2000 fuzz iterations
+  python3 test_ff_orca.py        # 8 unit tests + 2000 fuzz iterations
   ```
 
 ## Licence

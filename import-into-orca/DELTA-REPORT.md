@@ -7,5 +7,5 @@ Byte/behaviour-identical presets are skipped. Regenerate with `ff_orca.py fetch`
 | category | shipped | missing upstream | newer than upstream | identical (skipped) | FF total |
 |---|---:|---:|---:|---:|---:|
 | machine | 52 | 7 | 45 | 1 | 53 |
-| filament | 595 | 132 | 463 | 0 | 595 |
+| filament | 593 | 130 | 463 | 0 | 593 |
 | process | 121 | 20 | 101 | 0 | 121 |

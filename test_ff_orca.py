@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """Unit + fuzz tests for ff_orca.py. Run: python3 test_ff_orca.py  (no deps)."""
+import glob
+import json
+import os
 import random
 import ff_orca as M
 
@@ -57,6 +60,25 @@ def test_classify_missing_newer_identical():
     assert M.classify("P", fs, {}) == "missing"
     assert M.classify("P", fs, up_same) == "identical"
     assert M.classify("P", fs, up_diff) == "newer"
+
+
+# --- shipped output (skipped if import-into-orca/ isn't built) --------------
+
+def test_shipped_output_is_importable():
+    root = "import-into-orca"
+    if not os.path.isdir(root):
+        return  # nothing built locally; CI builds first
+    seen = 0
+    for cat in M.CATEGORIES:
+        for fp in glob.glob(os.path.join(root, cat, "*.json")):
+            seen += 1
+            d = json.load(open(fp, encoding="utf-8"))          # valid JSON
+            assert "inherits" not in d, f"{fp} still has inherits"
+            assert d.get("from") == "User", f"{fp} from != User"
+            assert d.get("name"), f"{fp} has no name"
+            assert d.get("type") in M.EXPECTED_TYPES[cat], \
+                f"{fp} type {d.get('type')!r} not valid for {cat}"
+    assert seen > 0, "import-into-orca/ exists but has no presets"
 
 
 # --- fuzz -------------------------------------------------------------------
