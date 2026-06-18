@@ -13,18 +13,25 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      # sanity-check the committed presets/bundles before publishing
-      - run: python3 test_ff_orca.py
-      - name: package all presets
-        run: zip -rq "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" import-into-orca
-      - name: create release with per-printer bundles + full zip
+      - run: pip install --quiet ruff
+      - name: validate
+        run: |
+          ruff check .
+          python3 test_ff_orca.py
+      - name: package + publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          zip -rq "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" import-into-orca
+          cat > NOTES.md <<'NOTE'
+          FlashForge presets for OrcaSlicer, extracted from Flash Studio 1.7.8.
+
+          Import one printer bundle below (the .orca_printer files) via
+          OrcaSlicer -> File -> Import -> Import Configs..., or download the
+          full zip for every loose preset plus the build-plate art. See the
+          README for which files to pick.
+          NOTE
           gh release create "${GITHUB_REF_NAME}" \
             import-into-orca/bundles/*.orca_printer \
             "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" \
-            --title "${GITHUB_REF_NAME}" \
-            --notes "FlashForge presets for OrcaSlicer, from Flash Studio 1.7.8.
-
-Import one **\`.orca_printer\`** bundle below for your printer (OrcaSlicer → File → Import → Import Configs…), or grab \`flashforge-orca-presets-${GITHUB_REF_NAME}.zip\` for every loose preset + build-plate art. See the README for details."
+            --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
