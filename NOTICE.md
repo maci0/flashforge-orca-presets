@@ -1,6 +1,6 @@
 # Notice / provenance
 
-The **tooling** in this repo (`build-ff-import.sh`, `flatten.py`) is MIT-licensed
+The **tooling** in this repo (`ff_orca.py`, `test_ff_orca.py`) is MIT-licensed
 (see `LICENSE`).
 
 The **profile data** under `import-into-orca/` is **not** original work — it is
@@ -16,4 +16,4 @@ profiles, but lags the current Flash Studio release; this packages the newer/
 missing ones so OrcaSlicer users get FlashForge's current tuning. If FlashForge
 requests removal, the data will be taken down.
 
-Generated from Flash Studio 1.7.8; regenerate with `build-ff-import.sh`.
+Generated from Flash Studio 1.7.8; regenerate with `python3 ff_orca.py fetch`.

@@ -1,75 +1,106 @@
 # flashforge-orca-presets
 
-**FlashForge's current slicer presets — from Flash Studio — packaged to import
-straight into stock [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer).**
+**FlashForge's current slicer presets — extracted from Flash Studio, flattened to
+import straight into stock [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer).**
 
-OrcaSlicer already bundles a FlashForge vendor, but it lags FlashForge's own
-slicer (**Flash Studio**, FF's OrcaSlicer fork). This repo carries every
-FlashForge preset that upstream OrcaSlicer is **missing** or holds an **older
-copy** of — each one flattened so it imports cleanly without FlashForge's vendor
-bases installed.
+OrcaSlicer already bundles a FlashForge vendor, but it tracks FlashForge's own
+slicer (**Flash Studio** — FF's OrcaSlicer fork, formerly Orca-Flashforge) with a
+lag. This repo carries every FlashForge preset that upstream OrcaSlicer is
+**missing** or ships an **older copy** of, each one *flattened* so it imports
+cleanly without FlashForge's vendor profiles installed.
 
 > Not affiliated with or endorsed by FlashForge. The profile data is
 > FlashForge's, redistributed for interoperability — see [`NOTICE.md`](NOTICE.md).
 
-## What's inside — Flash Studio 1.7.8 vs upstream OrcaSlicer
+## What's inside
 
-| category | shipped | missing upstream | newer than upstream | identical (skipped) | FF total |
-|---|---:|---:|---:|---:|---:|
-| **machine** (printers) | **57** | 7 | 50 | 2 | 59 |
-| **filament** | **636** | 134 | 502 | 0 | 636 |
-| **process** (quality) | **124** | 20 | 104 | 6 | 130 |
-| **total** | **817** | 161 | 656 | 8 | 825 |
+Generated from **Flash Studio 1.7.8** vs upstream OrcaSlicer's `Flashforge` vendor
+(also in [`import-into-orca/DELTA-REPORT.md`](import-into-orca/DELTA-REPORT.md)):
 
-- **Missing** = the printer/filament/process doesn't exist in upstream at all
-  (e.g. **Adventurer A5**, **Creator 5 / 5 Pro**, FF's PLA Galaxy/Luminous/
-  Sparkle/Metal, the CF/GF line).
-- **Newer** = upstream has the same-named preset but an older copy. FlashForge's
-  is newer — on machines that means updated `machine_start_gcode`, motion limits
-  (`machine_max_*`), retraction, bed-mesh, and new features (power-loss recovery,
-  resonance avoidance, wrapping detection). **All 636 filaments differ** from
-  upstream — upstream's FlashForge filament profiles are entirely stale.
-- **Skipped** = byte-identical to upstream; no reason to ship a duplicate.
+| category | shipped | missing upstream | newer than upstream | identical (skipped) |
+|---|---:|---:|---:|---:|
+| **machine** | **52** | 7 | 45 | 1 |
+| **filament** | **595** | 132 | 463 | 0 |
+| **process** | **121** | 20 | 101 | 0 |
+| **total** | **768** | 159 | 609 | 1 |
 
-`import-into-orca/DELTA-REPORT.md` is regenerated on every build.
+- The **52 machine presets** are printer×nozzle combinations (0.25 / 0.4 / 0.6 /
+  0.8, plus HF) across **11 models**: Adventurer 5M, 5M Pro, A5, AD5X, 3 Series,
+  Creator 5, Creator 5 Pro, Guider 2s, Guider 3 Ultra, Guider 4, Guider 4 Pro.
+  *(Abstract `inheritance` bases like `fdm_machine_common` are **not** shipped —
+  they aren't selectable printers; their values are already merged into each
+  preset by flattening.)*
+- The **595 filaments** are FlashForge's catalogue (PLA Galaxy / Luminous /
+  Sparkle / Metal / Pro, PETG Pro/Transparent, the CF/GF line, …) plus FusRock
+  and a few FF-tuned generics.
+- **Missing** = upstream doesn't have it at all (e.g. Adventurer A5, Creator 5).
+  **Newer** = upstream has the same preset but an older copy — for machines that's
+  updated `machine_start_gcode`, motion limits (`machine_max_*`), retraction,
+  bed-mesh, and newer features (power-loss recovery, resonance avoidance,
+  wrapping detection). Upstream's FlashForge **filament** profiles are essentially
+  all stale. **Identical** presets are skipped — no point shipping a duplicate.
 
-## Importing into OrcaSlicer
+## Install (import into OrcaSlicer)
 
 1. **OrcaSlicer → File → Import → Import Configs…**
 2. Select the `.json` files you want from `import-into-orca/filament/` (and
-   `process/` / `machine/`). Multi-select works.
-3. They land as **User** presets, filtered to compatible printers.
+   `process/` / `machine/`). Multi-select works; import a whole folder at once.
+3. They appear as **User** presets, filtered to compatible printers.
 
-Each preset is **flattened**: its `inherits` chain (FF vendor bases + the shared
-OrcaFilamentLibrary) is fully resolved into one self-contained preset with
-`from: "User"`, so it imports into stock OrcaSlicer with no FlashForge vendor
-files required. Machine defs reference build-plate assets in `buildplates/` via
-`bed_custom_texture`/`bed_custom_model`; OrcaSlicer falls back to a default plate
-if they aren't installed, so they're optional.
+Build-plate assets the machine presets reference live in
+`import-into-orca/buildplates/`; OrcaSlicer falls back to a default plate if they
+aren't installed, so they're optional.
+
+## How it works
+
+Each preset is **flattened**: its `inherits` chain (FlashForge vendor bases + the
+shared OrcaFilamentLibrary) is resolved into one self-contained preset with
+`inherits` removed and `from: "User"`, so stock OrcaSlicer takes it as a User
+preset with no FlashForge vendor files required.
+
+"Newer vs identical" is decided on the **resolved, effective** config — each
+preset is fully resolved on both sides and compared with bookkeeping keys
+(`version`, `setting_id`, `printer_agent`, …) ignored — so a preset only counts
+as "newer" when its actual slicing behaviour differs, not when FlashForge merely
+bumped a version string or moved a key between inheritance layers.
+
+> A handful of FlashForge filaments inherit OrcaSlicer base presets
+> (`fdm_filament_pla_silk`, …) that ship inside the OrcaSlicer binary rather than
+> as files; those base keys can't be inlined here, but OrcaSlicer supplies them
+> from its own defaults on import. The build prints a note listing any such
+> parents.
 
 ## Regenerating / updating
 
 ```sh
-./build-ff-import.sh
+python3 ff_orca.py fetch          # downloads Flash Studio + OrcaSlicer, rebuilds import-into-orca/
 ```
 
-Downloads the latest Flash Studio (Ubuntu AppImage), extracts its profiles,
-diffs them against upstream OrcaSlicer's `Flashforge` vendor, and writes the
-missing/newer ones — flattened — into `import-into-orca/`. Needs `curl`, `unzip`,
-`python3`, `gh`. When FlashForge ships a newer Flash Studio, bump `FS_URL` /
-`FS_VER` at the top of the script and re-run.
+`ff_orca.py fetch` runs the whole pipeline:
 
-- `build-ff-import.sh` — the pipeline.
-- `flatten.py` — the OrcaSlicer inheritance resolver it calls.
+1. download the latest Flash Studio (Ubuntu AppImage) and extract its profiles;
+2. sparse-clone upstream OrcaSlicer's `Flashforge` vendor + shared filament
+   library (one git op);
+3. flatten, diff (resolved config), and write the missing/newer presets.
 
-## Caveat
+Needs `curl`/`python3`, `unzip`, `git`. When FlashForge ships a newer Flash
+Studio, bump `FS_URL` / `FS_VER` at the top of `ff_orca.py` and re-run.
 
-The missing/newer/identical split is by **raw preset content** (filename +
-byte-compare against upstream). A "newer" preset may differ partly because
-FlashForge moved a key between inheritance layers rather than changing slicing
-behaviour — but `machine_start_gcode`, the new feature keys, and `version` are
-unambiguously newer. When in doubt, the shipped preset is FlashForge's current
-authoritative tuning.
+To rebuild from already-extracted trees instead of downloading:
+
+```sh
+python3 ff_orca.py build <flash-studio/resources/profiles> <orcaslicer/resources/profiles> import-into-orca
+```
+
+## Development
+
+- [`ff_orca.py`](ff_orca.py) — the whole tool (acquire + flatten + diff + report).
+  Pure functions (`resolve`, `effective`, `classify`, …) are isolated and tested.
+- [`test_ff_orca.py`](test_ff_orca.py) — unit + fuzz tests, no dependencies:
+
+  ```sh
+  python3 test_ff_orca.py        # 7 unit tests + 2000 fuzz iterations
+  ```
 
 ## Licence
 
