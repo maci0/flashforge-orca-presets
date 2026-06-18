@@ -81,6 +81,25 @@ def test_shipped_output_is_importable():
     assert seen > 0, "import-into-orca/ exists but has no presets"
 
 
+def test_orca_printer_bundles_are_well_formed():
+    import zipfile
+    bdir = "import-into-orca/bundles"
+    if not os.path.isdir(bdir):
+        return
+    bundles = glob.glob(os.path.join(bdir, "*.orca_printer"))
+    assert bundles, "bundles/ exists but has no .orca_printer files"
+    for b in bundles:
+        z = zipfile.ZipFile(b)
+        names = set(z.namelist())
+        assert "bundle_structure.json" in names, f"{b}: no manifest"
+        m = json.loads(z.read("bundle_structure.json"))
+        assert m.get("bundle_type") == "printer config bundle", f"{b}: wrong bundle_type"
+        assert m.get("printer_config"), f"{b}: no printer in bundle"
+        for arr in ("printer_config", "filament_config", "process_config"):
+            for path in m.get(arr, []):
+                assert path in names, f"{b}: manifest path {path!r} missing from zip"
+
+
 # --- fuzz -------------------------------------------------------------------
 
 def fuzz_resolve(iterations=2000, seed=0):

@@ -14,18 +14,28 @@ cleanly without FlashForge's vendor profiles installed.
 > Not affiliated with or endorsed by FlashForge. The profile data is
 > FlashForge's, redistributed for interoperability — see [`NOTICE.md`](NOTICE.md).
 
-## Quick start
+## Quick start — one file for your printer
 
-1. **Get the files** — on GitHub, **Code → Download ZIP** (then unzip), or:
-   ```sh
-   git clone https://github.com/maci0/flashforge-orca-presets
-   ```
-2. **OrcaSlicer → File → Import → Import Configs…**
-3. Select the `.json` files for your printer from
-   [`import-into-orca/`](import-into-orca) — your **machine** first, then the
-   **filament** / **process** presets you want. They appear as **User** presets.
+1. Download your printer's bundle from
+   [`import-into-orca/bundles/`](import-into-orca/bundles) (e.g.
+   `Flashforge_Adventurer_5M_Pro.orca_printer`).
+2. **OrcaSlicer → File → Import → Import Configs…** → select that `.orca_printer`.
+3. Done — the printer, **all** its FlashForge filaments, and its process presets
+   import together as **User** presets.
 
-See [Which files do I import?](#which-files-do-i-import) to pick the right ones.
+Each `.orca_printer` is the same bundle format OrcaSlicer itself exports: one
+printer model + every filament/process bound to it. Prefer to cherry-pick instead?
+The individual presets are in `import-into-orca/{machine,filament,process}/` —
+see [Which files do I import?](#which-files-do-i-import).
+
+> **Build-plate look** (optional, cosmetic): bundles carry the slicing config, not
+> the bed *artwork*. Bed **temperature** is part of the presets — it's chosen by
+> the bed *type* (Cool / Engineering / High-Temp / Textured PEI), and each
+> filament carries the per-bed-type temps. The custom plate **texture/model** (the
+> 3D bed preview) lives in [`import-into-orca/buildplates/`](import-into-orca/buildplates);
+> OrcaSlicer already has it for printers it ships, and falls back to a plain plate
+> otherwise. To get FlashForge's plate art on a *new* printer (A5, Creator 5), drop
+> those files into OrcaSlicer's `resources/profiles/Flashforge/` folder.
 
 ## What's inside
 
@@ -156,7 +166,7 @@ python3 ff_orca.py build <flash-studio/resources/profiles> <orcaslicer/resources
   validation, no dependencies (run on every push by CI):
 
   ```sh
-  python3 test_ff_orca.py        # 8 unit tests + 2000 fuzz iterations
+  python3 test_ff_orca.py        # 9 unit tests + 2000 fuzz iterations
   ```
 
 ## Licence

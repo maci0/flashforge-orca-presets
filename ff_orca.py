@@ -117,7 +117,6 @@ def classify(name: str, fs_tree: dict, up_tree: dict,
 
 def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
     stats: dict[str, dict] = {}
-    plate_refs: set[str] = set()
     for cat in CATEGORIES:
         fs_tree = load_category(fs_root, cat)
         up_tree = load_category(up_root, cat)
@@ -150,11 +149,6 @@ def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
             counts[kind] += 1
             if kind == "identical":
                 continue
-            if cat == "machine":
-                for key in ("bed_custom_texture", "bed_custom_model"):
-                    v = flat.get(key)
-                    if isinstance(v, str) and v:
-                        plate_refs.add(os.path.basename(v))
             json.dump(flat, open(os.path.join(out_cat, os.path.basename(fp)), "w", encoding="utf-8"),
                       indent=4, ensure_ascii=False)
         if unresolved:
@@ -166,25 +160,104 @@ def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
         print(f"    {cat}: {counts['missing'] + counts['newer']} shipped "
               f"({counts['missing']} missing + {counts['newer']} newer), "
               f"{counts['identical']} identical-skipped{extra}")
-    _copy_plates(fs_root, out_dir, plate_refs)
+    _copy_plates(fs_root, out_dir)
+    print("  bundling per printer ...")
+    n = make_bundles(out_dir)
+    print(f"  {n} .orca_printer bundles in {out_dir}/bundles/")
     _write_report(out_dir, stats, version)
     return stats
 
 
-def _copy_plates(fs_root: str, out_dir: str, refs: set[str]) -> None:
-    if not refs:
-        return
-    import shutil
+def _model_of(machine_name: str) -> str:
+    """Strip a nozzle suffix to get the printer model (instances -> their model;
+    the model umbrella preset is already the bare model name)."""
+    return re.sub(r"\s+\d(\.\d+)?\s*(HF\s+)?[Nn]ozzle.*$", "", machine_name).strip()
+
+
+def make_bundles(out_dir: str) -> int:
+    """Group the built presets into one .orca_printer bundle per printer model —
+    a zip of printer/ + filament/ + process/ presets with a bundle_structure.json,
+    the format OrcaSlicer's "Import Configs" reads. Returns the bundle count.
+
+    Filament/process are assigned to a model via each preset's `compatible_printers`
+    (the authoritative binding) rather than the inconsistent filename tokens.
+    """
+    import zipfile
+
+    def load(cat):  # filename -> (name, config)
+        out = {}
+        for fp in sorted(glob.glob(os.path.join(out_dir, cat, "*.json"))):
+            d = json.load(open(fp, encoding="utf-8"))
+            out[os.path.basename(fp)] = (d.get("name", _stem(fp)), d)
+        return out
+
+    machines, filaments, processes = load("machine"), load("filament"), load("process")
+    # model -> machine files; and machine-name -> model (for compatible_printers lookup)
+    model_machines: dict[str, list[str]] = {}
+    name_model: dict[str, str] = {}
+    for fn, (name, _) in machines.items():
+        model = _model_of(name)
+        model_machines.setdefault(model, []).append(fn)
+        name_model[name] = model
+
+    def models_for(cfg) -> set[str]:
+        cp = cfg.get("compatible_printers") or []
+        if isinstance(cp, str):
+            cp = [cp]
+        return {name_model[p] for p in cp if p in name_model}
+
+    model_fil: dict[str, list[str]] = {}
+    model_proc: dict[str, list[str]] = {}
+    for fn, (_, cfg) in filaments.items():
+        for m in models_for(cfg):
+            model_fil.setdefault(m, []).append(fn)
+    for fn, (_, cfg) in processes.items():
+        for m in models_for(cfg):
+            model_proc.setdefault(m, []).append(fn)
+
+    bdir = os.path.join(out_dir, "bundles")
+    if os.path.isdir(bdir):
+        shutil.rmtree(bdir)
+    os.makedirs(bdir)
+    made = 0
+    for model, mfiles in sorted(model_machines.items()):
+        ffiles = sorted(model_fil.get(model, []))
+        pfiles = sorted(model_proc.get(model, []))
+        manifest = {
+            "version": "", "bundle_id": "flashforge-orca-presets",
+            "bundle_type": "printer config bundle", "printer_preset_name": model,
+            "printer_config": [f"printer/{f}" for f in sorted(mfiles)],
+            "filament_config": [f"filament/{f}" for f in ffiles],
+            "process_config": [f"process/{f}" for f in pfiles],
+        }
+        safe = re.sub(r"[^\w.-]+", "_", model).strip("_")
+        with zipfile.ZipFile(os.path.join(bdir, f"{safe}.orca_printer"), "w", zipfile.ZIP_DEFLATED) as z:
+            for f in mfiles:
+                z.write(os.path.join(out_dir, "machine", f), f"printer/{f}")
+            for f in ffiles:
+                z.write(os.path.join(out_dir, "filament", f), f"filament/{f}")
+            for f in pfiles:
+                z.write(os.path.join(out_dir, "process", f), f"process/{f}")
+            z.writestr("bundle_structure.json", json.dumps(manifest))
+        made += 1
+        print(f"    bundle: {model} ({len(mfiles)} printer + {len(ffiles)} filament + {len(pfiles)} process)")
+    return made
+
+
+def _copy_plates(fs_root: str, out_dir: str) -> None:
+    """Copy FlashForge's build-plate assets (bed textures + 3D models). The flat
+    presets clear `bed_custom_texture`, so these are shipped as standalone art the
+    user can install for the custom bed preview — see the README."""
     dst = os.path.join(out_dir, "buildplates")
-    os.makedirs(dst, exist_ok=True)
+    if os.path.isdir(dst):
+        shutil.rmtree(dst)
     found = 0
-    for a in sorted(refs):
-        for src in glob.glob(os.path.join(fs_root, "Flashforge", "**", a), recursive=True):
+    for src in glob.glob(os.path.join(fs_root, "Flashforge", "**", "*uildplate*"), recursive=True):
+        if os.path.isfile(src):
+            os.makedirs(dst, exist_ok=True)
             shutil.copy2(src, dst)
             found += 1
-            break
-    if not found:
-        os.rmdir(dst)
+    print(f"    build-plate assets: {found}")
 
 
 def _write_report(out_dir: str, stats: dict, version: str) -> None:
