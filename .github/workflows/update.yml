@@ -1,0 +1,33 @@
+name: update
+on:
+  schedule:
+    - cron: "0 6 * * 1"          # weekly, Monday 06:00 UTC
+  workflow_dispatch:             # manual run
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      # squashfs-tools lets ff_orca.py extract the AppImage without FUSE (which
+      # GitHub runners lack) via the unsquashfs fallback.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq squashfs-tools
+      - name: rebuild presets from latest Flash Studio + OrcaSlicer
+        run: python3 ff_orca.py fetch --latest
+      - name: validate
+        run: python3 test_ff_orca.py
+      - name: commit if changed
+        run: |
+          if [ -n "$(git status --porcelain import-into-orca)" ]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add import-into-orca
+            git commit -m "auto: refresh presets (Flash Studio / OrcaSlicer drift)"
+            git push
+          else
+            echo "no preset changes"
+          fi

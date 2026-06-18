@@ -85,8 +85,17 @@ python3 ff_orca.py fetch          # downloads Flash Studio + OrcaSlicer, rebuild
    library (one git op);
 3. flatten, diff (resolved config), and write the missing/newer presets.
 
-Needs `curl`/`python3`, `unzip`, `git`. When FlashForge ships a newer Flash
-Studio, bump `FS_URL` / `FS_VER` at the top of `ff_orca.py` and re-run.
+Add `--latest` to auto-detect the newest Flash Studio from flashforge.com instead
+of the pinned URL:
+
+```sh
+python3 ff_orca.py fetch --latest
+```
+
+Needs `python3`, `git`, and `unzip` + either FUSE or `squashfs-tools` (for the
+AppImage). A weekly GitHub Action (`.github/workflows/update.yml`) runs
+`fetch --latest`, validates, and commits any change — so the repo tracks both new
+Flash Studio releases and upstream OrcaSlicer catching up, with no manual step.
 
 To rebuild from already-extracted trees instead of downloading:
 

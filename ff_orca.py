@@ -22,7 +22,7 @@ where <fs>/<up> each hold Flashforge/ (+ OrcaFilamentLibrary/) — from the Flas
 Studio AppImage and the OrcaSlicer repo respectively.
 """
 from __future__ import annotations
-import argparse, glob, json, os, shutil, subprocess, sys, tempfile, urllib.request, zipfile
+import argparse, glob, json, os, re, shutil, subprocess, sys, tempfile, urllib.parse, urllib.request, zipfile
 
 # --- defaults (bump when FlashForge ships a newer Flash Studio) --------------
 FS_URL = ("https://flashforge-resource.oss-us-east-1.aliyuncs.com/"
@@ -30,6 +30,8 @@ FS_URL = ("https://flashforge-resource.oss-us-east-1.aliyuncs.com/"
 FS_VER = "1.7.8"
 UP_REPO = "https://github.com/SoftFever/OrcaSlicer"
 UP_PATHS = ("resources/profiles/Flashforge", "resources/profiles/OrcaFilamentLibrary")
+FS_PAGE = "https://www.flashforge.com/pages/orca-flashforge"
+FS_OSS = "https://flashforge-resource.oss-us-east-1.aliyuncs.com/Flash%20Studio/"
 
 CATEGORIES = ("machine", "filament", "process")
 # valid OrcaSlicer preset `type`s per category (machine has the model umbrella +
@@ -210,20 +212,51 @@ def _run(cmd, **kw):
 
 def _extract_appimage(appimage: str, workdir: str) -> str:
     """Extract an AppImage's payload, returning squashfs-root/. Tries the bundled
-    runtime, then falls back to unsquashfs at the ELF's appimage offset."""
+    runtime (needs FUSE), then falls back to unsquashfs at the ELF's appimage
+    offset (e.g. CI runners, which have no FUSE)."""
     os.chmod(appimage, 0o755)
     root = os.path.join(workdir, "squashfs-root")
     try:
         _run([appimage, "--appimage-extract"], cwd=workdir)
     except (subprocess.CalledProcessError, OSError):
+        pass
+    # If FUSE extraction did nothing (raised, or silently no-op), unsquashfs it.
+    if not os.path.isdir(os.path.join(root, "resources")):
         off = subprocess.check_output([appimage, "--appimage-offset"], text=True).strip()
         _run(["unsquashfs", "-q", "-f", "-o", off, "-d", root, appimage])
     return root
 
 
+def _ver_tuple(s: str) -> tuple:
+    m = re.search(r"V([0-9]+(?:\.[0-9]+)*)", s)
+    return tuple(int(x) for x in m.group(1).split(".")) if m else ()
+
+
+def latest_fs_url(page: str = FS_PAGE) -> tuple[str, str]:
+    """Scrape FlashForge's download page for the newest Flash Studio Ubuntu build.
+    Returns (url, version) or ("", "") if none found (caller falls back to FS_URL)."""
+    try:
+        html = urllib.request.urlopen(page, timeout=30).read().decode("utf-8", "replace")
+    except OSError:
+        return "", ""
+    names = re.findall(r"Flash_Studio_ubuntu[^\"'<>\s]*\.zip", html)
+    if not names:
+        return "", ""
+    fn = max(set(names), key=_ver_tuple)
+    ver = re.search(r"V([0-9.]+)", fn)
+    return FS_OSS + urllib.parse.quote(fn), (ver.group(1).rstrip(".") if ver else "")
+
+
 def fetch(out_dir: str, fs_url: str = FS_URL, fs_ver: str = FS_VER,
-          up_repo: str = UP_REPO) -> dict:
+          up_repo: str = UP_REPO, latest: bool = False) -> dict:
     """Full pipeline: download Flash Studio + upstream OrcaSlicer, then build()."""
+    if latest:
+        url, ver = latest_fs_url()
+        if url:
+            fs_url, fs_ver = url, ver or fs_ver
+            print(f"[0/3] latest Flash Studio detected: {fs_ver}")
+        else:
+            print("[0/3] could not detect latest; using pinned FS_URL", file=sys.stderr)
     w = tempfile.mkdtemp(prefix="ff-orca-")
     try:
         print(f"[1/3] download + extract Flash Studio {fs_ver} ...")
@@ -262,6 +295,8 @@ def main(argv=None) -> int:
     pf.add_argument("-o", "--out", default="import-into-orca")
     pf.add_argument("--fs-url", default=FS_URL)
     pf.add_argument("--fs-ver", default=FS_VER)
+    pf.add_argument("--latest", action="store_true",
+                    help="auto-detect the newest Flash Studio from flashforge.com")
 
     pb = sub.add_parser("build", help="build from already-extracted local profile trees")
     pb.add_argument("fs_profiles")
@@ -272,7 +307,8 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd in (None, "fetch"):
         out = getattr(a, "out", "import-into-orca")
-        fetch(out, getattr(a, "fs_url", FS_URL), getattr(a, "fs_ver", FS_VER))
+        fetch(out, getattr(a, "fs_url", FS_URL), getattr(a, "fs_ver", FS_VER),
+              latest=getattr(a, "latest", False))
     else:
         for cat in CATEGORIES:
             if not os.path.isdir(os.path.join(a.fs_profiles, "Flashforge", cat)):
