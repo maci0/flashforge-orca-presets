@@ -23,15 +23,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           zip -rq "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" import-into-orca
-          cat > NOTES.md <<'NOTE'
-          FlashForge presets for OrcaSlicer, extracted from Flash Studio 1.7.8.
-
-          Import one printer bundle below (the .orca_printer files) via
-          OrcaSlicer -> File -> Import -> Import Configs..., or download the
-          full zip for every loose preset plus the build-plate art. See the
-          README for which files to pick.
-          NOTE
           gh release create "${GITHUB_REF_NAME}" \
             import-into-orca/bundles/*.orca_printer \
             "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" \
-            --title "${GITHUB_REF_NAME}" --notes-file NOTES.md
+            --title "${GITHUB_REF_NAME}" \
+            --notes-file .github/release-notes.md
