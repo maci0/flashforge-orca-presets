@@ -1,0 +1,30 @@
+name: release
+on:
+  push:
+    tags:
+      - "v*"
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      # sanity-check the committed presets/bundles before publishing
+      - run: python3 test_ff_orca.py
+      - name: package all presets
+        run: zip -rq "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" import-into-orca
+      - name: create release with per-printer bundles + full zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            import-into-orca/bundles/*.orca_printer \
+            "flashforge-orca-presets-${GITHUB_REF_NAME}.zip" \
+            --title "${GITHUB_REF_NAME}" \
+            --notes "FlashForge presets for OrcaSlicer, from Flash Studio 1.7.8.
+
+Import one **\`.orca_printer\`** bundle below for your printer (OrcaSlicer → File → Import → Import Configs…), or grab \`flashforge-orca-presets-${GITHUB_REF_NAME}.zip\` for every loose preset + build-plate art. See the README for details."

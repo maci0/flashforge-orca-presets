@@ -167,7 +167,11 @@ python3 ff_orca.py build <flash-studio/resources/profiles> <orcaslicer/resources
 
   ```sh
   python3 test_ff_orca.py        # 9 unit tests + 2000 fuzz iterations
+  ruff check . && ruff format --check .   # lint + format (config in pyproject.toml)
   ```
+
+  CI runs ruff + the tests on every push; a tagged `v*` push publishes a release
+  with the per-printer bundles attached ([`release.yml`](.github/workflows/release.yml)).
 
 ## Licence
 

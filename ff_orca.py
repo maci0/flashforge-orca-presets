@@ -21,12 +21,27 @@ Usage:
 where <fs>/<up> each hold Flashforge/ (+ OrcaFilamentLibrary/) — from the Flash
 Studio AppImage and the OrcaSlicer repo respectively.
 """
+
 from __future__ import annotations
-import argparse, glob, json, os, re, shutil, subprocess, sys, tempfile, urllib.parse, urllib.request, zipfile
+
+import argparse
+import glob
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import urllib.parse
+import urllib.request
+import zipfile
 
 # --- defaults (bump when FlashForge ships a newer Flash Studio) --------------
-FS_URL = ("https://flashforge-resource.oss-us-east-1.aliyuncs.com/"
-          "Flash%20Studio/Flash_Studio_ubuntu24.04_V1.7.8-.zip")
+FS_URL = (
+    "https://flashforge-resource.oss-us-east-1.aliyuncs.com/"
+    "Flash%20Studio/Flash_Studio_ubuntu24.04_V1.7.8-.zip"
+)
 FS_VER = "1.7.8"
 UP_REPO = "https://github.com/SoftFever/OrcaSlicer"
 UP_PATHS = ("resources/profiles/Flashforge", "resources/profiles/OrcaFilamentLibrary")
@@ -45,9 +60,18 @@ EXPECTED_TYPES = {
 VENDORS = ("Flashforge", "OrcaFilamentLibrary")
 # keys that differ for bookkeeping reasons, not slicing behaviour
 COSMETIC = {
-    "version", "from", "setting_id", "is_custom_defined", "instantiation",
-    "name", "printer_agent", "filament_id", "filament_settings_id",
-    "print_settings_id", "printer_settings_id", "user_id",
+    "version",
+    "from",
+    "setting_id",
+    "is_custom_defined",
+    "instantiation",
+    "name",
+    "printer_agent",
+    "filament_id",
+    "filament_settings_id",
+    "print_settings_id",
+    "printer_settings_id",
+    "user_id",
 }
 
 
@@ -69,8 +93,12 @@ def load_category(root: str, category: str) -> dict[str, tuple[dict, str]]:
     return out
 
 
-def resolve(name: str, tree: dict[str, tuple[dict, str]],
-            unresolved: set | None = None, _seen: frozenset = frozenset()) -> dict:
+def resolve(
+    name: str,
+    tree: dict[str, tuple[dict, str]],
+    unresolved: set | None = None,
+    _seen: frozenset = frozenset(),
+) -> dict:
     """Merge the full `inherits` chain (root-most first, child overrides).
 
     A missing parent is recorded in `unresolved` (its keys are simply absent
@@ -105,8 +133,7 @@ def importable(flat: dict, name: str) -> dict:
     return out
 
 
-def classify(name: str, fs_tree: dict, up_tree: dict,
-             unresolved: set | None = None) -> str:
+def classify(name: str, fs_tree: dict, up_tree: dict, unresolved: set | None = None) -> str:
     """'missing' | 'newer' | 'identical' by resolved effective config."""
     if name not in up_tree:
         return "missing"
@@ -149,17 +176,26 @@ def build(fs_root: str, up_root: str, out_dir: str, version: str = "") -> dict:
             counts[kind] += 1
             if kind == "identical":
                 continue
-            json.dump(flat, open(os.path.join(out_cat, os.path.basename(fp)), "w", encoding="utf-8"),
-                      indent=4, ensure_ascii=False)
+            json.dump(
+                flat,
+                open(os.path.join(out_cat, os.path.basename(fp)), "w", encoding="utf-8"),
+                indent=4,
+                ensure_ascii=False,
+            )
         if unresolved:
-            print(f"  note: {cat}: {len(unresolved)} inherits parent(s) not found "
-                  f"(keys absent): {', '.join(sorted(unresolved)[:5])}"
-                  f"{' …' if len(unresolved) > 5 else ''}", file=sys.stderr)
+            print(
+                f"  note: {cat}: {len(unresolved)} inherits parent(s) not found "
+                f"(keys absent): {', '.join(sorted(unresolved)[:5])}"
+                f"{' …' if len(unresolved) > 5 else ''}",
+                file=sys.stderr,
+            )
         stats[cat] = counts
         extra = f", {counts['misfiled']} mis-filed-skipped" if counts.get("misfiled") else ""
-        print(f"    {cat}: {counts['missing'] + counts['newer']} shipped "
-              f"({counts['missing']} missing + {counts['newer']} newer), "
-              f"{counts['identical']} identical-skipped{extra}")
+        print(
+            f"    {cat}: {counts['missing'] + counts['newer']} shipped "
+            f"({counts['missing']} missing + {counts['newer']} newer), "
+            f"{counts['identical']} identical-skipped{extra}"
+        )
     _copy_plates(fs_root, out_dir)
     print("  bundling per printer ...")
     n = make_bundles(out_dir)
@@ -224,14 +260,18 @@ def make_bundles(out_dir: str) -> int:
         ffiles = sorted(model_fil.get(model, []))
         pfiles = sorted(model_proc.get(model, []))
         manifest = {
-            "version": "", "bundle_id": "flashforge-orca-presets",
-            "bundle_type": "printer config bundle", "printer_preset_name": model,
+            "version": "",
+            "bundle_id": "flashforge-orca-presets",
+            "bundle_type": "printer config bundle",
+            "printer_preset_name": model,
             "printer_config": [f"printer/{f}" for f in sorted(mfiles)],
             "filament_config": [f"filament/{f}" for f in ffiles],
             "process_config": [f"process/{f}" for f in pfiles],
         }
         safe = re.sub(r"[^\w.-]+", "_", model).strip("_")
-        with zipfile.ZipFile(os.path.join(bdir, f"{safe}.orca_printer"), "w", zipfile.ZIP_DEFLATED) as z:
+        with zipfile.ZipFile(
+            os.path.join(bdir, f"{safe}.orca_printer"), "w", zipfile.ZIP_DEFLATED
+        ) as z:
             for f in mfiles:
                 z.write(os.path.join(out_dir, "machine", f), f"printer/{f}")
             for f in ffiles:
@@ -240,7 +280,7 @@ def make_bundles(out_dir: str) -> int:
                 z.write(os.path.join(out_dir, "process", f), f"process/{f}")
             z.writestr("bundle_structure.json", json.dumps(manifest))
         made += 1
-        print(f"    bundle: {model} ({len(mfiles)} printer + {len(ffiles)} filament + {len(pfiles)} process)")
+        print(f"    bundle: {model} ({len(mfiles)}p + {len(ffiles)}f + {len(pfiles)}proc)")
     return made
 
 
@@ -268,15 +308,19 @@ def _write_report(out_dir: str, stats: dict, version: str) -> None:
         "copy of (newer, by *resolved effective* config — cosmetic keys ignored).",
         "Byte/behaviour-identical presets are skipped. Regenerate with `ff_orca.py fetch`.",
         "",
-        "| category | shipped | missing upstream | newer than upstream | identical (skipped) | FF total |",
+        "| category | shipped | missing upstream | newer than upstream | identical (skipped) | FF total |",  # noqa: E501
         "|---|---:|---:|---:|---:|---:|",
     ]
     for cat in CATEGORIES:
         c = stats[cat]
         tot = c["missing"] + c["newer"] + c["identical"]
-        lines.append(f"| {cat} | {c['missing'] + c['newer']} | {c['missing']} | "
-                     f"{c['newer']} | {c['identical']} | {tot} |")
-    open(os.path.join(out_dir, "DELTA-REPORT.md"), "w", encoding="utf-8").write("\n".join(lines) + "\n")
+        lines.append(
+            f"| {cat} | {c['missing'] + c['newer']} | {c['missing']} | "
+            f"{c['newer']} | {c['identical']} | {tot} |"
+        )
+    open(os.path.join(out_dir, "DELTA-REPORT.md"), "w", encoding="utf-8").write(
+        "\n".join(lines) + "\n"
+    )
 
 
 def _run(cmd, **kw):
@@ -320,8 +364,13 @@ def latest_fs_url(page: str = FS_PAGE) -> tuple[str, str]:
     return FS_OSS + urllib.parse.quote(fn), (ver.group(1).rstrip(".") if ver else "")
 
 
-def fetch(out_dir: str, fs_url: str = FS_URL, fs_ver: str = FS_VER,
-          up_repo: str = UP_REPO, latest: bool = False) -> dict:
+def fetch(
+    out_dir: str,
+    fs_url: str = FS_URL,
+    fs_ver: str = FS_VER,
+    up_repo: str = UP_REPO,
+    latest: bool = False,
+) -> dict:
     """Full pipeline: download Flash Studio + upstream OrcaSlicer, then build()."""
     if latest:
         url, ver = latest_fs_url()
@@ -361,15 +410,20 @@ def fetch(out_dir: str, fs_url: str = FS_URL, fs_ver: str = FS_VER,
 
 
 def main(argv=None) -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     sub = ap.add_subparsers(dest="cmd")
 
     pf = sub.add_parser("fetch", help="download Flash Studio + OrcaSlicer, then build (default)")
     pf.add_argument("-o", "--out", default="import-into-orca")
     pf.add_argument("--fs-url", default=FS_URL)
     pf.add_argument("--fs-ver", default=FS_VER)
-    pf.add_argument("--latest", action="store_true",
-                    help="auto-detect the newest Flash Studio from flashforge.com")
+    pf.add_argument(
+        "--latest",
+        action="store_true",
+        help="auto-detect the newest Flash Studio from flashforge.com",
+    )
 
     pb = sub.add_parser("build", help="build from already-extracted local profile trees")
     pb.add_argument("fs_profiles")
@@ -380,8 +434,12 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     if a.cmd in (None, "fetch"):
         out = getattr(a, "out", "import-into-orca")
-        fetch(out, getattr(a, "fs_url", FS_URL), getattr(a, "fs_ver", FS_VER),
-              latest=getattr(a, "latest", False))
+        fetch(
+            out,
+            getattr(a, "fs_url", FS_URL),
+            getattr(a, "fs_ver", FS_VER),
+            latest=getattr(a, "latest", False),
+        )
     else:
         for cat in CATEGORIES:
             if not os.path.isdir(os.path.join(a.fs_profiles, "Flashforge", cat)):

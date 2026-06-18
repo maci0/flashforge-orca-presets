@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Unit + fuzz tests for ff_orca.py. Run: python3 test_ff_orca.py  (no deps)."""
+
 import glob
 import json
 import os
 import random
+
 import ff_orca as M
 
 
@@ -14,12 +16,15 @@ def tree(d):
 
 # --- unit -------------------------------------------------------------------
 
+
 def test_resolve_merges_chain_child_wins():
-    t = tree({
-        "base":  {"a": 1, "b": 1},
-        "mid":   {"inherits": "base", "b": 2, "c": 2},
-        "leaf":  {"inherits": "mid", "c": 3, "d": 3},
-    })
+    t = tree(
+        {
+            "base": {"a": 1, "b": 1},
+            "mid": {"inherits": "base", "b": 2, "c": 2},
+            "leaf": {"inherits": "mid", "c": 3, "d": 3},
+        }
+    )
     assert M.resolve("leaf", t) == {"a": 1, "b": 2, "c": 3, "d": 3}
     assert "inherits" not in M.resolve("leaf", t)
 
@@ -55,7 +60,7 @@ def test_importable_marks_user_and_strips_inherits():
 
 def test_classify_missing_newer_identical():
     fs = tree({"P": {"speed": 9, "version": "2"}})
-    up_same = tree({"P": {"speed": 9, "version": "1"}})   # only cosmetic differs
+    up_same = tree({"P": {"speed": 9, "version": "1"}})  # only cosmetic differs
     up_diff = tree({"P": {"speed": 5}})
     assert M.classify("P", fs, {}) == "missing"
     assert M.classify("P", fs, up_same) == "identical"
@@ -63,6 +68,7 @@ def test_classify_missing_newer_identical():
 
 
 # --- shipped output (skipped if import-into-orca/ isn't built) --------------
+
 
 def test_shipped_output_is_importable():
     root = "import-into-orca"
@@ -72,17 +78,19 @@ def test_shipped_output_is_importable():
     for cat in M.CATEGORIES:
         for fp in glob.glob(os.path.join(root, cat, "*.json")):
             seen += 1
-            d = json.load(open(fp, encoding="utf-8"))          # valid JSON
+            d = json.load(open(fp, encoding="utf-8"))  # valid JSON
             assert "inherits" not in d, f"{fp} still has inherits"
             assert d.get("from") == "User", f"{fp} from != User"
             assert d.get("name"), f"{fp} has no name"
-            assert d.get("type") in M.EXPECTED_TYPES[cat], \
+            assert d.get("type") in M.EXPECTED_TYPES[cat], (
                 f"{fp} type {d.get('type')!r} not valid for {cat}"
+            )
     assert seen > 0, "import-into-orca/ exists but has no presets"
 
 
 def test_orca_printer_bundles_are_well_formed():
     import zipfile
+
     bdir = "import-into-orca/bundles"
     if not os.path.isdir(bdir):
         return
@@ -102,16 +110,17 @@ def test_orca_printer_bundles_are_well_formed():
 
 # --- fuzz -------------------------------------------------------------------
 
+
 def fuzz_resolve(iterations=2000, seed=0):
     """Random inheritance graphs (incl. cycles + dangling parents): resolve must
     always terminate, never raise, drop `inherits`, and honour child-overrides."""
     rnd = random.Random(seed)
-    for it in range(iterations):
+    for _ in range(iterations):
         n = rnd.randint(1, 8)
         names = [f"n{i}" for i in range(n)]
         cfg = {}
-        for i, nm in enumerate(names):
-            d = {f"k{rnd.randint(0,4)}": rnd.randint(0, 9) for _ in range(rnd.randint(0, 4))}
+        for nm in names:
+            d = {f"k{rnd.randint(0, 4)}": rnd.randint(0, 9) for _ in range(rnd.randint(0, 4))}
             # parent: another node (maybe later -> cycle), a dangling name, or none
             r = rnd.random()
             if r < 0.6:
@@ -122,7 +131,7 @@ def fuzz_resolve(iterations=2000, seed=0):
         t = tree(cfg)
         for nm in names:
             un = set()
-            out = M.resolve(nm, t, un)           # must not hang or raise
+            out = M.resolve(nm, t, un)  # must not hang or raise
             assert "inherits" not in out
             # every key in the resolved output traces to some node's own value
             for k, v in out.items():
